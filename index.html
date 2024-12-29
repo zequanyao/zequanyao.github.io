@@ -275,6 +275,109 @@
     const REPO_OWNER = 'zequanyao';
     const REPO_NAME = 'zequanyao.github.io';
 
+    // 在 script 标签内添加以下代码（替换原有的 localStorage 相关代码）
+
+    const GITHUB_TOKEN = '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'; // 这里粘贴您的 token
+    const REPO_OWNER = 'zequanyao';
+    const REPO_NAME = 'zequanyao.github.io';
+    
+    // 保存内容到 GitHub
+    async function saveToGitHub(content) {
+        try {
+            // 首先获取现有文件的 SHA
+            let sha = '';
+            try {
+                const getResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/content.json`);
+                const fileData = await getResponse.json();
+                sha = fileData.sha;
+            } catch (error) {
+                console.log('File does not exist yet');
+            }
+    
+            // 保存内容
+            const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/content.json`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${GITHUB_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: 'Update content',
+                    content: btoa(unescape(encodeURIComponent(JSON.stringify(content)))),
+                    sha: sha || undefined
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to save content');
+            }
+            
+            console.log('Content saved successfully');
+        } catch (error) {
+            console.error('Failed to save content:', error);
+            alert('保存失败，请重试');
+        }
+    }
+    
+    // 从 GitHub 加载内容
+    async function loadFromGitHub() {
+        try {
+            const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/content.json`);
+            if (!response.ok) {
+                throw new Error('Content not found');
+            }
+            const data = await response.json();
+            return JSON.parse(decodeURIComponent(escape(atob(data.content))));
+        } catch (error) {
+            console.error('Failed to load content:', error);
+            return null;
+        }
+    }
+    
+    // 修改发布按钮的处理
+    $('.publish-btn').click(async function() {
+        if (isAdmin && confirm('确定要发布最新内容吗？这将更新访客可见的版本。')) {
+            const content = $('main').html();
+            const $tempContent = $('<div>').html(content);
+            $tempContent.find('.delete-btn, .add-item-btn, .upload-btn').remove();
+            await saveToGitHub({
+                adminContent: content,
+                publicContent: $tempContent.html()
+            });
+            alert('内容已发布！');
+        }
+    });
+    
+    // 修改自动保存功能
+    async function autoSave() {
+        if (isEditMode) {
+            const content = $('main').html();
+            const $tempContent = $('<div>').html(content);
+            $tempContent.find('.delete-btn, .add-item-btn, .upload-btn').remove();
+            await saveToGitHub({
+                adminContent: content,
+                publicContent: $tempContent.html()
+            });
+            console.log('Content auto-saved');
+        }
+    }
+    
+    // 在页面加载时获取内容
+    $(document).ready(async function() {
+        // ... 其他初始化代码 ...
+    
+        // 尝试从 GitHub 加载内容
+        const githubContent = await loadFromGitHub();
+        if (githubContent) {
+            if (isAdmin) {
+                $('main').html(githubContent.adminContent);
+                addDeleteButtons();
+            } else {
+                $('main').html(githubContent.publicContent);
+            }
+        }
+    });
+
     // 保存内容到 localStorage
     function saveContent(content) {
         localStorage.setItem(ADMIN_CONTENT_KEY, content.adminContent);
